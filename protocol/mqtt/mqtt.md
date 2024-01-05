@@ -9,7 +9,7 @@
 
 ### 剩余长度
 
-从固定报头的第二个字节开始,表示可变报头+有效载荷部分的长度，是个可变长度，最大4子节，最小1子节
+从固定报头的第二个字节开始,表示[可变报头(Variable Header)+有效载荷(Payload)]部分的长度，是个可变长度，最大4子节，最小1子节
 
 * 小于128字节 直接用单子节编码
 * 大于128字节 低字节7位编码数字，第8位指示是否有更多子节。
@@ -104,5 +104,103 @@ keepalive表示两个控制报文之间允许最大的空闲间隔
  
 ### Payload
 无
+
+## PUBLISH 发布
+
+### 固定报头
+
+![image](./img/publish-header.png)
+
+* DUP 重发标志
+  - 重发消息=1
+  - QoS=0,DUP=1
+* Qos-H Qos高位
+* Qos-L Qos低位
+* RETAIN 保留标志
+
+#### Qos
+
+* 0 最多分发一次
+* 1 至少分发一次
+* 2 正好分发一次
+
+
+#### RETAIN
+
+1. 客户端->服务端
+
+如果客户端发给服务端的PUBLISH报文的保留（RETAIN）标志被设置为1，服务端必须存储这个应用消息和它的服务质量等级（QoS）。一个新的订阅建立时，对每个匹配的主题名，如果存在最近保留的消息，它必须被发送给这个订阅者。
+
+如果服务端收到一条保留（RETAIN）标志为1的QoS 0消息，它必须丢弃之前为那个主题保留的任何消息。它应该将这个新的QoS 0消息当作那个主题的新保留消息。
+
+
+2. 服务端->客户端
+
+
+### 可变报头
+
+* 主题名
+* 报文标识符 只有当QoS等级是1或2时，报文标识符（Packet Identifier）字段才能出现在PUBLISH报文中
+
+![image](./img/publish-variable.png)
+
+### Payload
+
+应用消息。
+
+
+### 响应
+
+PUBLISH报文的接收者必须按照根据PUBLISH报文中的QoS等级发送响应
+
+* Qos=0 无响应
+* Qos=1 PUBACK报文
+* Qos=2 PUBREC报文
+
+## PUBACK
+
+PUBACK报文是对QoS 1等级的PUBLISH报文的响应。
+
+### 固定报头
+
+![image](./img/puback-header.png)
+
+
+### 可变报头
+
+包含等待确认的PUBLISH报文的报文标识符。
+
+![image](./img/puback-variable.png)
+
+### Payload
+
+无
+
+
+## PUBREC 发布收到
+
+PUBREC报文是对QoS等级2的PUBLISH报文的响应。它是QoS 2等级协议交换的第二个报文。
+
+### 固定报头
+
+![image](./img/puback-header.png)
+
+
+### 可变报头
+
+![image](./img/puback-variable.png)
+
+### Payload
+
+无
+
+
+## PUBREL 发布释放
+
+PUBREL报文是对PUBREC报文的响应。它是QoS 2等级协议交换的第三个报文。
+
+
+
+
 
 
