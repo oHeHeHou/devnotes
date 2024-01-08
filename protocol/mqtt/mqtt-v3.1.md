@@ -1,4 +1,6 @@
-### 声明：图片来自https://github.com/mcxiaoke/mqtt
+### 声明：图片来自以下2个文档
+* https://public.dhe.ibm.com/software/dw/webservices/ws-mqtt/mqtt-v3r1.html
+* https://github.com/mcxiaoke/mqtt
 
 # 控制报文概要
 
@@ -198,6 +200,59 @@ PUBREC报文是对QoS等级2的PUBLISH报文的响应。它是QoS 2等级协议�
 ## PUBREL 发布释放
 
 PUBREL报文是对PUBREC报文的响应。它是QoS 2等级协议交换的第三个报文。
+
+### 固定报头
+
+![image](./img/pubrel-header.png)
+
+
+### 可变报头
+
+![image](./img/pubrel-variable.png)
+
+
+### Payload
+
+无
+
+
+
+## PUBCOMP 发布完成
+
+PUBCOMP报文是对PUBREL报文的响应。它是QoS 2等级协议交换的第四个也是最后一个报文。
+
+### 固定报头
+
+![image](./img/pubcomp-header.png)
+
+### 可变报头
+
+![image](./img/pubrel-variable.png)
+
+
+### Payload
+
+无
+
+## SUBSCRIBE 订阅主题
+
+客户端向服务端发送SUBSCRIBE报文，可以订阅1个或者多个主题
+
+### 固定报头
+
+![image](./img/subscribe-header.png)
+
+剩余长度=可变报头的长度（2字节）加上有效载荷的长度。
+
+### 可变报头
+
+可变报头包含报文标识符，2个字节，下图是一个例子，代表标识符为10的可变报头
+
+![image](./img/subscribe-variable.png)
+
+### Payload
+
+![image](./img/subscribe-payload.png)
 
 
 
