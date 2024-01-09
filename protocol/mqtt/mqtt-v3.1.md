@@ -120,7 +120,7 @@ MQ Telemetry Transport (MQTT)，基于broker，发布/订阅的消息协议，�
 * 字节4 Q
 * 字节5 T
 * 字节6 T
-* 字节7 协议级别，数字4
+* 字节7 version num，数字4(V3是数字3)
 * 字节8 链接标志，第一位是保留标志位，如果不是0则断开客户链接,2-8位分别代表不同的信息
 * 字节9 KEEPALIVE时间 高字节
 * 字节10 KEEPALIVE时间 低字节
