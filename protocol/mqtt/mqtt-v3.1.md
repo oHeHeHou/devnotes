@@ -1,12 +1,64 @@
-### 声明：图片来自以下2个文档
+### 声明：图片和内容来自以下文档
 * https://public.dhe.ibm.com/software/dw/webservices/ws-mqtt/mqtt-v3r1.html
-* https://github.com/mcxiaoke/mqtt
+* https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/mqtt-v3.1.1.html
 
-# 控制报文概要
+# 概要
+
+----
+
+MQ Telemetry Transport (MQTT)，基于broker，发布/订阅的消息协议，适用于下面场景
+* 流量昂贵，低带宽，网络不可靠
+* 在有限资源的嵌入式设备上
+
+在TCP协议上
+
+
+
+# 数据流
+
+----
+
+
+
+# 消息格式
 
 ----
 
 ## 固定报头(Fixed Header)
+
+![image](./img/Fixed-header-format.png)
+
+* 字节1:消息类型+FLag(DUP, QoS level, and RETAIN)
+* 字节2:剩余长度 
+
+### 消息类型
+
+![image](./img/message-type.png)
+
+
+### Flags
+
+#### DUP 
+	
+当client或者server重发 PUBLISH, PUBREL, SUBSCRIBE or UNSUBSCRIBE 时，设置DUP。
+这适用于 QoS 值大于零 (0) 且需要确认的消息。当设置 DUP 位时，变量标头包含消息ID。
+
+#### Qos
+
+![image](./img/qos.png)
+
+#### RETAIN
+
+该标志仅用于PUBLISH消息，当客户端向服务器发送PUBLISH消息时，如果保留标志设置为(1)，则服务器应在将消息传递给当前订阅者后保留该消息。当有新client订阅时，最后保留的消息将被发送到client。
+
+1. 客户端->服务端
+
+如果客户端发给服务端的PUBLISH报文的保留（RETAIN）标志被设置为1，服务端必须存储这个应用消息和它的服务质量等级（QoS）。一个新的订阅建立时，对每个匹配的主题名，如果存在最近保留的消息，它必须被发送给这个订阅者。
+
+如果服务端收到一条保留（RETAIN）标志为1的QoS 0消息，它必须丢弃之前为那个主题保留的任何消息。它应该将这个新的QoS 0消息当作那个主题的新保留消息。
+
+
+2. 服务端->客户端
 
 
 ### 剩余长度
@@ -41,6 +93,7 @@
 ## 有效载荷(Payload)
 
 应用消息
+
 
 # 控制报文详解
 
@@ -78,18 +131,20 @@ keepalive表示两个控制报文之间允许最大的空闲间隔
 ![image](./img/connect-variable.png)
 
 ### Payload
+
 内容由可变报头中的标识位决定,按照下面顺序出现：
-* 客户端标识符 服务端使用clientId识别客户端,必须存在，并且是Payload第一个字段  
+* 客户端标识符Will Topic 服务端使用clientId识别客户端,必须存在，并且是Payload第一个字段  
   1到23字节，只能包含大小写数字
-* 遗嘱主题 
-* 遗嘱消息
-* 用户名 
-* 密码 
+* 遗嘱主题(Will Topic)
+* 遗嘱消息(Will Message)
+* 用户名(User Name)
+* 密码(Password) 
 
 ## CONNACK 确认连接请求
 服务端发送CONNACK报文响应从客户端收到的CONNECT，服务端发给客户端的第一个报文必须是CONNACK。
 
 ### 固定报头
+
 ![image](./img/connack-header.png)
 
 ### 可变报头
@@ -119,24 +174,6 @@ keepalive表示两个控制报文之间允许最大的空闲间隔
 * Qos-H Qos高位
 * Qos-L Qos低位
 * RETAIN 保留标志
-
-#### Qos
-
-* 0 最多分发一次
-* 1 至少分发一次
-* 2 正好分发一次
-
-
-#### RETAIN
-
-1. 客户端->服务端
-
-如果客户端发给服务端的PUBLISH报文的保留（RETAIN）标志被设置为1，服务端必须存储这个应用消息和它的服务质量等级（QoS）。一个新的订阅建立时，对每个匹配的主题名，如果存在最近保留的消息，它必须被发送给这个订阅者。
-
-如果服务端收到一条保留（RETAIN）标志为1的QoS 0消息，它必须丢弃之前为那个主题保留的任何消息。它应该将这个新的QoS 0消息当作那个主题的新保留消息。
-
-
-2. 服务端->客户端
 
 
 ### 可变报头
@@ -236,7 +273,7 @@ PUBCOMP报文是对PUBREL报文的响应。它是QoS 2等级协议交换的第�
 
 ## SUBSCRIBE 订阅主题
 
-客户端向服务端发送SUBSCRIBE报文，可以订阅1个或者多个主题
+client->server，可以订阅1个或者多个主题，订阅之后，server对client发送publish消息，SUBSCRIBE包含qos设置
 
 ### 固定报头
 
@@ -252,7 +289,127 @@ PUBCOMP报文是对PUBREL报文的响应。它是QoS 2等级协议交换的第�
 
 ### Payload
 
-![image](./img/subscribe-payload.png)
+内容包含TopicName+Qos,TopicName支持通配符
+
+![image](./img/subscribe-sample.png)
+
+* publisher qos > subscriber qos:use subscriber qos
+* publisher qos <= subscriber qos:use publisher qos
+
+### Response
+
+当server收到SUBSCRIBE，向client返回SUBACK。client收到SUBACK之前，server就可能继续发送PUBLISH
+
+## SUBACK 订阅响应
+
+server->client，确定收到SUBSCRIBE。
+
+### Fixed header
+
+![image](./img/suback-header.png)
+
+### Variable header
+
+![image](./img/suback-variable.png)
+
+### Payload
+
+payload中包含qos的列表,跟SUBSCRIBE中的qos列表顺序一致
+
+![image](./img/suback-payload.png)
+
+## UNSUBSCRIBE 取消订阅
+
+clinet->server，取消订阅Topic
+
+
+### Fixed header
+
+![image](./img/unsubscribe-header.png)
+
+QoS=1
+
+### Variable header
+
+消息ID
+
+![image](./img/message-id.png)
+
+### Payload
+
+payload中包含qos的列表,跟SUBSCRIBE中的qos列表顺序一致
+
+![image](./img/unsubscribe-sample.png)
+
+
+## UNSUBACK 取消订阅确认
+
+server->client，确定收到UNSUBSCRIBE
+
+### Fixed header
+
+![image](./img/unsuback-header.png)
+
+### Variable header
+
+消息ID
+
+![image](./img/massage-id.png)
+
+### Payload
+
+无
+
+
+## PINGREQ 心跳请求
+
+client->server
+
+### Fixed header
+
+![image](./img/PINGREQ-header.png)
+
+### Variable header
+
+无
+
+### Payload
+
+无
+
+
+## PINGRESP 心跳响应
+
+server->client
+
+### Fixed header
+
+![image](./img/PINGRESP-header.png)
+
+### Variable header
+
+无
+
+### Payload
+
+无
+
+## DISCONNECT
+
+client->server，关闭TCP链接
+
+
+### Fixed header
+
+![image](./img/DISCONNECT-header.png)
+
+### Variable header
+
+无
+
+### Payload
+
+无
 
 
 
