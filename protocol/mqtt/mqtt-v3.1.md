@@ -1,6 +1,8 @@
 ### 声明：图片和内容来自以下文档
 * https://public.dhe.ibm.com/software/dw/webservices/ws-mqtt/mqtt-v3r1.html
 * https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/mqtt-v3.1.1.html
+* https://www.emqx.com/zh/blog/introduction-to-mqtt-qos
+
 
 # 概要
 
@@ -42,6 +44,9 @@ MQ Telemetry Transport (MQTT)，基于broker，发布/订阅的消息协议，�
 	
 当client或者server重发 PUBLISH, PUBREL, SUBSCRIBE or UNSUBSCRIBE 时，设置DUP。
 这适用于 QoS 值大于零 (0) 且需要确认的消息。当设置 DUP 位时，变量标头包含消息ID。
+QoS=0时，DUP=0。
+
+当服务器将 PUBLISH 数据包发送给订阅者时，不会传播传入 PUBLISH 数据包中的 DUP 标志值。传出 PUBLISH 数据包中的 DUP 标志独立于传入 PUBLISH 数据包设置，其值必须仅由传出 PUBLISH 数据包是否重传来确定。
 
 #### Qos
 
@@ -49,21 +54,12 @@ MQ Telemetry Transport (MQTT)，基于broker，发布/订阅的消息协议，�
 
 #### RETAIN
 
-该标志仅用于PUBLISH消息，当客户端向服务器发送PUBLISH消息时，如果保留标志设置为(1)，则服务器应在将消息传递给当前订阅者后保留该消息。当有新client订阅时，最后保留的消息将被发送到client。
-
-1. 客户端->服务端
-
-如果客户端发给服务端的PUBLISH报文的保留（RETAIN）标志被设置为1，服务端必须存储这个应用消息和它的服务质量等级（QoS）。一个新的订阅建立时，对每个匹配的主题名，如果存在最近保留的消息，它必须被发送给这个订阅者。
-
-如果服务端收到一条保留（RETAIN）标志为1的QoS 0消息，它必须丢弃之前为那个主题保留的任何消息。它应该将这个新的QoS 0消息当作那个主题的新保留消息。
-
-
-2. 服务端->客户端
+该标志仅用于PUBLISH消息。
 
 
 ### 剩余长度
 
-从固定报头的第二个字节开始,表示[可变报头(Variable Header)+有效载荷(Payload)]部分的长度，是个可变长度，最大4子节，最小1子节
+从固定报头的第二个字节开始,表示[可变报头(Variable Header)+有效载荷(Payload)]部分的长度，是个可变长度，最大4子节，最小1子节。剩余长度不包含自己本身的长度。
 
 * 小于128字节 直接用单子节编码
 * 大于128字节 低字节7位编码数字，第8位指示是否有更多子节。
@@ -79,16 +75,6 @@ MQ Telemetry Transport (MQTT)，基于broker，发布/订阅的消息协议，�
 
 在固定报头和有效载荷之间
 
-### 报文标识符
-
-2个字节
-
-* PUBLISH(QOS>0)
-* SUBSCRIBE
-* UNSUBSCRIBE
-
-以上报文每发送一个，要分配一个没使用的，重发报文时，要用相同的标识。
-
 
 ## 有效载荷(Payload)
 
@@ -100,40 +86,109 @@ MQ Telemetry Transport (MQTT)，基于broker，发布/订阅的消息协议，�
 ----
 
 ## CONNECT 连接请求
-客户端向服务器建立连接后发送的第一个报文，只能发一次，重发会断开现在的链接。
 
-### 固定报头
+clinet->server，客户端向服务器建立连接后发送的第一个报文，只能发一次，重发会断开现在的链接。
+
+### Fixed header
 
 ![image](./img/connect-header.png)
 
 剩余长度=可变报头10字节+Payload长度
 
-### 可变报头
+### Variable header
 
-10个字节
+Protocol Name + Protocol Level + Connect Flags = 10个字节
 
-### 字节1-10 协议名
+#### Protocol Name
 
-* 字节1 协议名长度高字节，数字0 
-* 字节2 协议名长度低字节，数字4
-* 字节3 M
-* 字节4 Q
-* 字节5 T
-* 字节6 T
-* 字节7 version num，数字4(V3是数字3)
-* 字节8 链接标志，第一位是保留标志位，如果不是0则断开客户链接,2-8位分别代表不同的信息
-* 字节9 KEEPALIVE时间 高字节
-* 字节10 KEEPALIVE时间 低字节
+![image](./img/protocol-name.png)
 
-keepalive表示两个控制报文之间允许最大的空闲间隔
+#### Protocol Level
+
+![image](./img/protocol-level.png)
+
+#### Connect Flags
+
+![image](./img/connect-flags.png)
+
+服务器必须验证 CONNECT 控制数据包中的保留标志是否设置为零，如果不为零，则断开客户端连接 
+
+##### Clean Session
+
+* clean session=0 如果 CleanSession 设置为 0，服务器必须根据当前会话的状态（由客户端标识符标识）恢复与客户端的通信。如果没有与客户端标识符关联的会话，服务器必须创建一个新会话。客户端和服务器断开连接后，客户端和服务器必须存储会话。会话断开连接后，服务器必须存储与断开连接时客户端拥有的任何订阅相匹配的QoS 1 和 QoS 2 消息，作为会话状态的一部分
+* clean session=1 客户端和服务器必须放弃任何先前的会话并开始一个新的会话,客户端和服务器不需要自动处理状态删除
+
+1. Client Session:
+
+* QoS 1 和 QoS 2 消息已发送到服务器，但尚未确认
+* 已从服务器收到但尚未确认的 QoS 2 消息
+
+2. Server Session:
+
+* 客户端订阅
+* QoS 1 和 QoS 2 消息已发送给客户端，但尚未确认
+* QoS 1 和 QoS 2 消息等待传输到客户端
+* 已从客户端收到但尚未确认的 QoS 2 消息
+* 可选地，QoS 0 消息等待传输到客户端
+
+##### Will Flag
+
+如果=1，Will Message必须存储在Server，client的网络连接关闭时，必须发布Will Message。以下几种场景都判定为需要发布Will Message:
+
+* An I/O error or network failure detected by the Server.
+* The Client fails to communicate within the Keep Alive time.
+* The Client closes the Network Connection without first sending a DISCONNECT Packet.
+* The Server closes the Network Connection because of a protocol error.
+
+1. Will Flag=1
+
+* Server使用Will QoS和Will RETAIN，Will Topic & Will Message要包含在Payload
+* Will Message被Server发布后，或者Server收到DISCONNECT后，就会被移除
 
 
-![image](./img/connect-variable.png)
+2. Will Flag=0
+* Will QoS和Will RETAIN=0，Will Topic & Will Message不在Payload
+* 网络关闭后，Will Message不发布
+
+
+##### Will QoS
+
+* Will Flag=1，Will Qos=0/1/2
+* Will Flag=0，Will Qos=0
+
+##### Will Retain
+
+表明Will Message是否要被保留
+
+* Will Flag=1，Will Qos=0/1/2
+* Will Flag=0，Will Qos=0
+
+##### User Name Flag
+
+* 0，Playload不包含
+* 1，Playload包含
+
+##### Password Flag
+
+* 0，Playload不包含
+* 1，Playload包含
+
+##### Keep alive
+
+单位是秒，代表客户端发送两次 MQTT 协议包之间的最大间隔时间。
+
+在连接建立后，客户端需要确保, 自己任意两次 MQTT 协议包的发送间隔不超过 Keep Alive 的值，如果客户端当前处于空闲状态，没有可发送的包，则可以发送 PINGREQ 协议包。
+
+* 如果KeepAlive>0,server在1.5倍KeepAlive事件内没有收到client的数据包，必须断开和client的链接。
+
+Variable header例子：
+
+![image](./img/connect-variable-sample.png)
 
 ### Payload
 
 内容由可变报头中的标识位决定,按照下面顺序出现：
-* 客户端标识符Will Topic 服务端使用clientId识别客户端,必须存在，并且是Payload第一个字段  
+* 客户端标识符(Client Identifier) 每个连接到服务器的客户端都有一个唯一的ClientId，并且是Payload第一个字段  
   1到23字节，只能包含大小写数字
 * 遗嘱主题(Will Topic)
 * 遗嘱消息(Will Message)
@@ -143,11 +198,11 @@ keepalive表示两个控制报文之间允许最大的空闲间隔
 ## CONNACK 确认连接请求
 服务端发送CONNACK报文响应从客户端收到的CONNECT，服务端发给客户端的第一个报文必须是CONNACK。
 
-### 固定报头
+### Fixed header
 
 ![image](./img/connack-header.png)
 
-### 可变报头
+### Variable header
 
 ![image](./img/connack-variable.png)
 
@@ -174,6 +229,12 @@ keepalive表示两个控制报文之间允许最大的空闲间隔
 * Qos-H Qos高位
 * Qos-L Qos低位
 * RETAIN 保留标志
+
+#### RETAIN
+
+，当客户端向服务器发送PUBLISH消息时，如果保留标志设置为(1)，则服务器应保留消息和Qos。当有新client订阅时，最后保留的消息将被发送到client。
+
+如果服务端收到一条RETAIN=1，QoS=0消息，它必须丢弃之前为那个主题保留的任何消息。它应该将这个新的QoS 0消息当作那个主题的新保留消息。
 
 
 ### 可变报头
