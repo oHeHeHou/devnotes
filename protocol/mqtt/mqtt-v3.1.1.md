@@ -1,4 +1,4 @@
-### 声明：图片和内容来自以下文档
+**### 声明：图片和内容来自以下文档
 * https://public.dhe.ibm.com/software/dw/webservices/ws-mqtt/mqtt-v3r1.html
 * https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/mqtt-v3.1.1.html
 * https://www.emqx.com/zh/blog/introduction-to-mqtt-qos
@@ -15,18 +15,23 @@ MQ Telemetry Transport (MQTT)，基于broker，发布/订阅的消息协议，�
 在TCP协议上
 
 
-
 # 数据流
 
+-----
+## Qos
+
+### Qos0
+
+
+
+更详尽的解释可以参考:https://www.emqx.com/zh/blog/introduction-to-mqtt-qos
+
+
+# 消息格式概览
+
 ----
 
-
-
-# 消息格式
-
-----
-
-## 固定报头(Fixed Header)
+## Fixed header(Fixed Header)
 
 ![image](./img/Fixed-header-format.png)
 
@@ -59,7 +64,7 @@ QoS=0时，DUP=0。
 
 ### 剩余长度
 
-从固定报头的第二个字节开始,表示[可变报头(Variable Header)+有效载荷(Payload)]部分的长度，是个可变长度，最大4子节，最小1子节。剩余长度不包含自己本身的长度。
+从Fixed header的第二个字节开始,表示[Variable header(Variable Header)+有效载荷(Payload)]部分的长度，是个可变长度，最大4子节，最小1子节。剩余长度不包含自己本身的长度。
 
 * 小于128字节 直接用单子节编码
 * 大于128字节 低字节7位编码数字，第8位指示是否有更多子节。
@@ -71,14 +76,16 @@ QoS=0时，DUP=0。
 * 假设是321，二进制是0001 0100 0001，超过7位了，所以要再用一个字节表示，第八位的1代表进位，原来的0转移到下一个子节，变成0000 0010 1100 0001
 
 
-## 可变报头(Variable Header)
+## Variable header(Variable Header)
 
-在固定报头和有效载荷之间
+在Fixed header和有效载荷之间
 
 
 ## 有效载荷(Payload)
 
-应用消息
+应用消息，包含Payload的报文如下
+
+![image](./img/contains-payload.png)
 
 
 # 控制报文详解
@@ -93,7 +100,7 @@ clinet->server，客户端向服务器建立连接后发送的第一个报文，
 
 ![image](./img/connect-header.png)
 
-剩余长度=可变报头10字节+Payload长度
+剩余长度=Variable header10字节+Payload长度
 
 ### Variable header
 
@@ -111,29 +118,38 @@ Protocol Name + Protocol Level + Connect Flags = 10个字节
 
 ![image](./img/connect-flags.png)
 
-服务器必须验证 CONNECT 控制数据包中的保留标志是否设置为零，如果不为零，则断开客户端连接 
+服务器必须验证 CONNECT 控制数据包中的RETAIN是否设置为零，如果不为零，则断开客户端连接 
 
 ##### Clean Session
 
-* clean session=0 如果 CleanSession 设置为 0，服务器必须根据当前会话的状态（由客户端标识符标识）恢复与客户端的通信。如果没有与客户端标识符关联的会话，服务器必须创建一个新会话。客户端和服务器断开连接后，客户端和服务器必须存储会话。会话断开连接后，服务器必须存储与断开连接时客户端拥有的任何订阅相匹配的QoS 1 和 QoS 2 消息，作为会话状态的一部分
-* clean session=1 客户端和服务器必须放弃任何先前的会话并开始一个新的会话,客户端和服务器不需要自动处理状态删除
+代表Session处理方式。
+
+Client和Server需要保存的会话如下
 
 1. Client Session:
 
-* QoS 1 和 QoS 2 消息已发送到服务器，但尚未确认
-* 已从服务器收到但尚未确认的 QoS 2 消息
+* 已发送给服务端，但是还没有完成确认的 QoS 1 和 QoS 2 消息
+* 从服务端收到的，但是还没有完成确认的 QoS 2 消息
 
 2. Server Session:
 
-* 客户端订阅
-* QoS 1 和 QoS 2 消息已发送给客户端，但尚未确认
-* QoS 1 和 QoS 2 消息等待传输到客户端
+* 会话是否存在  
+* 客户端订阅列表
+* 已发送给客户端，但是还没完成确认的QoS 1 和 QoS 2消息
+* 等待传输到客户端的Qos 0(可选)，Qos 1 Qos 2消息
 * 已从客户端收到但尚未确认的 QoS 2 消息
-* 可选地，QoS 0 消息等待传输到客户端
+
+
+处理场景
+* clean session=0 服务器必须根据当前会话的状态（由客户端标识符标识）恢复与客户端的通信。如果没有与客户端标识符关联的会话，服务器必须创建一个新会话。客户端和服务器断开连接后，客户端和服务器必须存储会话。会话断开连接后，服务器必须存储与断开连接时客户端拥有的任何订阅相匹配的QoS 1 和 QoS 2 消息，作为会话状态的一部分
+* clean session=1 客户端和服务器必须放弃任何先前保存的会话并开始一个新的会话。
+
 
 ##### Will Flag
+代表是否有遗嘱。
 
-如果=1，Will Message必须存储在Server，client的网络连接关闭时，必须发布Will Message。以下几种场景都判定为需要发布Will Message:
+如果CONNECT报文的Will Flag=1，Server必须保存对应的Will Message。
+当client的网络连接关闭时，必须发布Will Message。以下几种场景都判定为需要发布Will Message:
 
 * An I/O error or network failure detected by the Server.
 * The Client fails to communicate within the Keep Alive time.
@@ -147,6 +163,7 @@ Protocol Name + Protocol Level + Connect Flags = 10个字节
 
 
 2. Will Flag=0
+
 * Will QoS和Will RETAIN=0，Will Topic & Will Message不在Payload
 * 网络关闭后，Will Message不发布
 
@@ -163,15 +180,15 @@ Protocol Name + Protocol Level + Connect Flags = 10个字节
 * Will Flag=1，Will Qos=0/1/2
 * Will Flag=0，Will Qos=0
 
-##### User Name Flag
+##### UserName Flag
 
-* 0，Playload不包含
-* 1，Playload包含
+* 0，Payload不包含
+* 1，Payload包含
 
 ##### Password Flag
 
-* 0，Playload不包含
-* 1，Playload包含
+* 0，Payload不包含
+* 1，Payload包含
 
 ##### Keep alive
 
@@ -187,7 +204,7 @@ Variable header例子：
 
 ### Payload
 
-内容由可变报头中的标识位决定,按照下面顺序出现：
+内容由Variable header中的标识位决定,按照下面顺序出现：
 * 客户端标识符(Client Identifier) 每个连接到服务器的客户端都有一个唯一的ClientId，并且是Payload第一个字段  
   1到23字节，只能包含大小写数字
 * 遗嘱主题(Will Topic)
@@ -195,8 +212,13 @@ Variable header例子：
 * 用户名(User Name)
 * 密码(Password) 
 
+### Response
+
+连接建立后，如果一段时间后没收到CONNECT包，Server应该关闭连接。
+
 ## CONNACK 确认连接请求
-服务端发送CONNACK报文响应从客户端收到的CONNECT，服务端发给客户端的第一个报文必须是CONNACK。
+
+server->client， 服务端发送CONNACK报文响应从客户端收到的CONNECT，服务端发给客户端的第一个报文必须是CONNACK。
 
 ### Fixed header
 
@@ -207,40 +229,52 @@ Variable header例子：
 ![image](./img/connack-variable.png)
 
 第1个字节是 连接确认标志，位7-1是保留位且必须设置为0。第0 (SP)位 是当前会话（Session Present）标志。
-第2个字节是 返回码，如果返回非0，SP=0
-* clearSession=1：返回码=0，SP=0
-* clearSession=0：
+第2个字节是 返回码Return code，如果返回非0，SP=0
+
+#### Session Present
+
+* Clean Session=1：Server设置SP=0，返回码=0
+* Clean Session=0：
   - 已保存会话状态：返回码=0，SP=1
   - 未保存会话状态：返回码=0，SP=0
- 
+
+
+
+#### Return code
+
+![image](./img/connack-retcode.png)
+
  
 ### Payload
 无
 
 ## PUBLISH 发布
 
-### 固定报头
+server<->client，发送应用消息。
+
+### Fixed header
 
 ![image](./img/publish-header.png)
 
-* DUP 重发标志
-  - 重发消息=1
-  - QoS=0,DUP=1
+#### DUP 重发标志
+
+* DUP=0，第一次发送PUBLISH消息，如果Qos=0，DUP必须为0
+* DUP=1，重传消息
+
+#### Qos
 * Qos-H Qos高位
 * Qos-L Qos低位
-* RETAIN 保留标志
 
 #### RETAIN
 
-，当客户端向服务器发送PUBLISH消息时，如果保留标志设置为(1)，则服务器应保留消息和Qos。当有新client订阅时，最后保留的消息将被发送到client。
+* 当客户端向服务器发送PUBLISH消息时，如果RETAIN=1，则服务器应保留消息和Qos。当有新client订阅Topic时，最后保留的消息将被发送到client。
+* 当服务端收到一条RETAIN=1，QoS=0消息，它必须丢弃之前为那个Topic保留的任何消息。它应该将这个新的QoS 0消息当作那个主题的新保留消息。
 
-如果服务端收到一条RETAIN=1，QoS=0消息，它必须丢弃之前为那个主题保留的任何消息。它应该将这个新的QoS 0消息当作那个主题的新保留消息。
 
+### Variable header
 
-### 可变报头
-
-* 主题名
-* 报文标识符 只有当QoS等级是1或2时，报文标识符（Packet Identifier）字段才能出现在PUBLISH报文中
+* 主题名Topic Name
+* 报文标识符Packet Identifier 只有当QoS等级是1或2时，报文标识符字段才能出现在PUBLISH报文中
 
 ![image](./img/publish-variable.png)
 
@@ -248,8 +282,7 @@ Variable header例子：
 
 应用消息。
 
-
-### 响应
+### Response
 
 PUBLISH报文的接收者必须按照根据PUBLISH报文中的QoS等级发送响应
 
@@ -259,18 +292,18 @@ PUBLISH报文的接收者必须按照根据PUBLISH报文中的QoS等级发送响
 
 ## PUBACK
 
-PUBACK报文是对QoS 1等级的PUBLISH报文的响应。
+client<->server，PUBACK报文是对QoS 1等级的PUBLISH报文的响应。
 
-### 固定报头
+### Fixed header
 
 ![image](./img/puback-header.png)
 
 
-### 可变报头
+### Variable header
 
 包含等待确认的PUBLISH报文的报文标识符。
 
-![image](./img/puback-variable.png)
+![image](./img/message-id.png)
 
 ### Payload
 
@@ -279,16 +312,16 @@ PUBACK报文是对QoS 1等级的PUBLISH报文的响应。
 
 ## PUBREC 发布收到
 
-PUBREC报文是对QoS等级2的PUBLISH报文的响应。它是QoS 2等级协议交换的第二个报文。
+client<->server，PUBREC报文是对QoS等级2的PUBLISH报文的响应。它是QoS 2等级协议交换的第二个报文。
 
-### 固定报头
+### Fixed header
 
-![image](./img/puback-header.png)
+![image](./img/pubrec-header.png)
 
 
-### 可变报头
+### Variable header
 
-![image](./img/puback-variable.png)
+![image](./img/message-id.png)
 
 ### Payload
 
@@ -297,16 +330,16 @@ PUBREC报文是对QoS等级2的PUBLISH报文的响应。它是QoS 2等级协议�
 
 ## PUBREL 发布释放
 
-PUBREL报文是对PUBREC报文的响应。它是QoS 2等级协议交换的第三个报文。
+client<->server，PUBREL报文是对PUBREC报文的响应。它是QoS 2等级协议交换的第三个报文。
 
-### 固定报头
+### Fixed header
 
 ![image](./img/pubrel-header.png)
 
 
-### 可变报头
+### Variable header
 
-![image](./img/pubrel-variable.png)
+![image](./img/message-id.png)
 
 
 ### Payload
@@ -317,15 +350,15 @@ PUBREL报文是对PUBREC报文的响应。它是QoS 2等级协议交换的第三
 
 ## PUBCOMP 发布完成
 
-PUBCOMP报文是对PUBREL报文的响应。它是QoS 2等级协议交换的第四个也是最后一个报文。
+client<->server，PUBCOMP报文是对PUBREL报文的响应。它是QoS 2等级协议交换的第四个也是最后一个报文。
 
-### 固定报头
+### Fixed header
 
 ![image](./img/pubcomp-header.png)
 
-### 可变报头
+### Variable header
 
-![image](./img/pubrel-variable.png)
+![image](./img/message-id.png)
 
 
 ### Payload
@@ -336,15 +369,15 @@ PUBCOMP报文是对PUBREL报文的响应。它是QoS 2等级协议交换的第�
 
 client->server，可以订阅1个或者多个主题，订阅之后，server对client发送publish消息，SUBSCRIBE包含qos设置
 
-### 固定报头
+### Fixed header
 
 ![image](./img/subscribe-header.png)
 
-剩余长度=可变报头的长度（2字节）加上有效载荷的长度。
+剩余长度=Variable header的长度（2字节）加上有效载荷的长度。
 
-### 可变报头
+### Variable header
 
-可变报头包含报文标识符，2个字节，下图是一个例子，代表标识符为10的可变报头
+Variable header包含报文标识符，2个字节，下图是一个例子，代表标识符为10的Variable header
 
 ![image](./img/subscribe-variable.png)
 
@@ -471,7 +504,6 @@ client->server，关闭TCP链接
 ### Payload
 
 无
-
 
 
 
