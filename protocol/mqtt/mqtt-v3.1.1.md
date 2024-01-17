@@ -49,9 +49,6 @@ QoS 2 规定，发送方只有在收到 PUBREC 报文之前可以重传 PUBLISH 
 
 
 
-
-
-
 更详尽的解释可以参考:https://www.emqx.com/zh/blog/introduction-to-mqtt-qos
 
 
@@ -532,4 +529,29 @@ client->server，关闭TCP链接
 ### Payload
 
 无
+
+
+# 通配符
+
+-----
+Topic可以用通配符表示
+
+## 多级通配符
+
+用#表示，多级通配符可以表示零个或多个级别。
+
+比如finance/stock/ibm/#，代表下面几个Topic：
+
+* finance/stock/ibm
+* finance/stock/ibm/closingprice
+* finance/stock/ibm/currentprice
+
+## 单级通配符
+
+用+表示，只能匹配一个层级
+
+比如finance/stock/，代表下面几个Topic
+
+* finance/stock/xyz
+* finance/stock/abc
 
