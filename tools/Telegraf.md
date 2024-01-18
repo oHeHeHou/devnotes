@@ -211,9 +211,6 @@ cpu,host=pop-os,tag=telegraf,topic=telegraf/one/cpu/23 value=45,test=23i 1637014
 ```
 
 
-
-
-
 ### processor
 
 https://docs.influxdata.com/telegraf/v1/plugins/#processor-plugins
