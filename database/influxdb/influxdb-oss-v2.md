@@ -1,3 +1,18 @@
+# 核心概念
+
+The InfluxDB data model organizes time series data into buckets and measurements.
+A bucket can contain multiple measurements. Measurements contain multiple tags and fields.
+
+* Bucket 包含多个Measurement
+* Measurement 时序数据的逻辑分组，包含多个Tags和fields。同一个measurement应该包含同样的tags
+* Tags Key-value，不经常改变，类似metadata，host, location, station, etc
+* Fields Key-value，随时间变化，temperature, pressure, stock price, etc
+* Timestamp 数据时间，根据时间排序
+
+
+![image](./img/bucket.png)
+
+
 # influx CLI
 
 ## 创建config
